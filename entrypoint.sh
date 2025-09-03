@@ -18,6 +18,8 @@ fi
 
 echo "Space Engineers Dedicated Server is installed in /torch."
 
+cd /torch
+
 # Set display
 export DISPLAY=:0
 
