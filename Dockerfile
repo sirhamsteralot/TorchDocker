@@ -33,13 +33,15 @@ RUN \
 RUN \
     mkdir -p /torch && \
     wget -O torch-server.zip "https://build.torchapi.com/job/Torch/job/master/lastSuccessfulBuild/artifact/bin/torch-server.zip" && \
-    unzip torch-server.zip -d /torch
+    unzip torch-server.zip -d /torch  && \
+    rm torch-server.zip;
 
 # Install steamcmd
 RUN \
     mkdir -p steamcmd && cd steamcmd; \
         wget https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz; \
         tar -xvzf steamcmd_linux.tar.gz; \
+        rm steamcmd_linux.tar.gz; \
         ./steamcmd.sh +login anonymous +force_install_dir /torch +app_update 298740 validate +quit
     
 WORKDIR /torch
