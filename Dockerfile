@@ -1,55 +1,48 @@
 FROM debian:trixie-slim
 
+VOLUME torch
+
 # Set environment variables for non-interactive installs
-ENV DEBIAN_FRONTEND=noninteractive
-ENV WINEARCH=win64
-ENV DISPLAY=:5.0
-ENV WINEPREFIX=/pfx
+ENV \ 
+    DEBIAN_FRONTEND=noninteractive \
+    WINEARCH=win64 \
+    DISPLAY=:5.0 \
+    WINEPREFIX=/pfx
 
-# Add contrib repo
-RUN sed -i 's/main$/main contrib/' /etc/apt/sources.list.d/debian.sources
+# entrypoint addin
+COPY entrypoint.sh /entrypoint.sh
 
-# Update and install dependencies
-RUN dpkg --add-architecture i386
-RUN apt-get update -qq && apt-get install -qq -y wget cabextract curl gnupg2 xz-utils unzip wine32 wine64 winetricks xvfb winbind libwbclient0
+# dependencies and wine management
+RUN \ 
+    sed -i 's/main$/main contrib/' /etc/apt/sources.list.d/debian.sources && \
+    dpkg --add-architecture i386 && \ 
+    apt-get update -qq && apt-get install -qq -y wget cabextract curl gnupg2 xz-utils unzip wine32 wine64 winetricks xvfb winbind libwbclient0 && \
+    
+    # wine hack to prevent 64 bit build errors
+    ln -s /usr/bin/wine /usr/local/bin/wine64
+    
 
-# Hack to avoid wine32 bother
-RUN ln -s /usr/bin/wine /usr/local/bin/wine64
-
-# Remove wine prefix
-RUN rm -rf $WINEPREFIX
-
-# Install .NET Framework 4.8 using winetricks
 RUN \
+    # dotnet48 managed install 
+    rm -rf $WINEPREFIX && \
     Xvfb :5 -screen 0 1024x768x16 & \
     env WINEARCH=win64 WINEDEBUG=-all WINEDLLOVERRIDES="mscoree=d" wineboot --init /nogui; \
     env WINEARCH=win64 WINEDEBUG=-all wine winecfg /v win10; \
     env WINEARCH=win64 WINEDEBUG=-all winetricks corefonts; \
     env WINEARCH=win64 WINEDEBUG=-all winetricks sound=disabled; \
     env WINEARCH=win64 WINEDEBUG=-all winetricks -q vcrun2019; \
-    env WINEARCH=win64 WINEDEBUG=-all winetricks -q --force dotnet48
-
-# Download torch
-RUN \
-    mkdir -p /torch && \
+    env WINEARCH=win64 WINEDEBUG=-all winetricks -q --force dotnet48 && \
+	
+    # torch install
     wget -O torch-server.zip "https://build.torchapi.com/job/Torch/job/master/lastSuccessfulBuild/artifact/bin/torch-server.zip" && \
     unzip torch-server.zip -d /torch  && \
-    rm torch-server.zip;
-
-# Install steamcmd
-RUN \
-    mkdir -p steamcmd && cd steamcmd; \
-        wget https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz; \
-        tar -xvzf steamcmd_linux.tar.gz; \
-        rm steamcmd_linux.tar.gz; \
-        ./steamcmd.sh +login anonymous +force_install_dir /torch +app_update 298740 validate +quit
+    rm torch-server.zip && \
+    
+    # entrypoint execution permission
+    chmod +x /entrypoint.sh
     
 WORKDIR /torch
 
-EXPOSE 27016/udp 8080 5900
-
-# Use a shell script as entrypoint to start Xvfb and then run the server
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+EXPOSE 27016 8080 8443
 
 ENTRYPOINT ["/entrypoint.sh"]
